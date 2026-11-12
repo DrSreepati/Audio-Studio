@@ -12,6 +12,7 @@ import pygame
 import edge_tts
 import webbrowser
 import sys
+import time
 
 from enhancer import enhance_text, basic_clean
 
@@ -196,7 +197,22 @@ def synthesize_text(text, voice_id, rate, pitch, volume, out_path,
     part_mp3s = []
     for i, ch in enumerate(chunks, 1):
         mp3_path = f"{base}__part{i:03d}.mp3"
-        run_coro_in_new_loop(tts_async_mp3(ch, voice_id, rate, pitch, volume, mp3_path))
+        last_err = None
+        for attempt in range(1, 4):
+            try:
+                run_coro_in_new_loop(tts_async_mp3(ch, voice_id, rate, pitch, volume, mp3_path))
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                if attempt < 3:
+                    time.sleep(2 * attempt)
+        if last_err is not None:
+            raise RuntimeError(
+                f"TTS failed after 3 attempts: {last_err}\n"
+                "If you see 403 'Invalid response status': run 'python -m pip install -U edge-tts' "
+                "and make sure your PC date/time is synced (Settings > Time & language > Sync now)."
+            )
         part_mp3s.append(mp3_path)
         if progress_cb:
             progress_cb(int((i / total) * 100))
